@@ -1,7 +1,11 @@
 import streamlit as st
 
 st.title("Moving Helper AI")
-st.write("Generate a simple moving plan based on your items, budget, and moving date.")
+st.write("Use camera, voice, and text to generate a moving plan.")
+
+picture = st.camera_input("Take a photo of your items")
+
+audio = st.audio_input("Record your question")
 
 move_date = st.date_input("Move date")
 budget = st.text_input("Budget", placeholder="$300")
@@ -27,8 +31,8 @@ amount = st.selectbox(
 if st.button("Generate Plan"):
     st.subheader("Your Moving Plan")
 
-    if not items:
-        st.warning("Please enter your items first.")
+    if not items and not picture and not audio:
+        st.warning("Please enter items, take a photo, or record your question first.")
     else:
         st.markdown(f"""
 ### Summary
@@ -38,20 +42,31 @@ if st.button("Generate Plan"):
 - Truck needed: {need_truck}
 - Distance: {distance}
 - Amount of stuff: {amount}
+- Photo uploaded: {picture is not None}
+- Voice recorded: {audio is not None}
 """)
 
-        st.markdown("### Packing Priority")
+        st.markdown("### Basic Plan")
 
-        if "mattress" in items.lower() or "bed" in items.lower():
-            st.write("1. Prepare mattress bags and move mattresses last.")
-        else:
-            st.write("1. Pack daily-use items last.")
+        if items:
+            lower_items = items.lower()
 
-        if "books" in items.lower():
-            st.write("2. Pack books in small boxes because they get heavy quickly.")
+            if "mattress" in lower_items or "bed" in lower_items:
+                st.write("1. Prepare mattress bags and move mattresses last.")
+            else:
+                st.write("1. Pack daily-use items last.")
 
-        if "clothes" in items.lower():
-            st.write("3. Pack clothes in suitcases, vacuum bags, or large boxes.")
+            if "books" in lower_items:
+                st.write("2. Pack books in small boxes because they get heavy quickly.")
+
+            if "clothes" in lower_items:
+                st.write("3. Pack clothes in suitcases, vacuum bags, or large boxes.")
+
+        if picture:
+            st.write("The photo will be used as visual input for the AI assistant.")
+
+        if audio:
+            st.write("The recorded voice will be used as the user's spoken question.")
 
         st.write("4. Keep important documents, chargers, and toiletries in one essentials bag.")
 

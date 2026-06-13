@@ -30,16 +30,17 @@ picture = st.camera_input("Take a photo of your items")
 audio = st.audio_input("Record your question")
 
 if audio:
-    if st.button("Transcribe Audio"):
-        try:
-            with st.spinner("Transcribing audio..."):
-                transcript_text = transcribe_audio(audio)
+    try:
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio
+        )
 
-            st.subheader("Voice Transcript")
-            st.write(transcript_text)
+        st.write(transcript.text)
 
-        except Exception as e:
-            st.error(f"Audio transcription failed: {e}")
+    except Exception as e:
+        st.error(str(e))
+
 
 
 if picture:

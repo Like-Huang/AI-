@@ -65,6 +65,12 @@ if st.button("Generate Plan"):
         if picture:
             st.write("The photo will be used as visual input for the AI assistant.")
 
+            st.image(
+                picture,
+                caption="Capture Image",
+                use_container_width=True
+            )
+
         if audio:
             st.write("The recorded voice will be used as the user's spoken question.")
 

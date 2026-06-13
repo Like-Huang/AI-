@@ -1,4 +1,11 @@
+from openai import OpenAI
 import streamlit as st
+
+
+st.write(
+    st.secrets["OPENAI_API_KEY"][:10]
+)
+
 
 st.title("Moving Helper AI")
 st.write("Use camera, voice, and text to generate a moving plan.")

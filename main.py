@@ -9,6 +9,14 @@ def image_to_base64(uploaded_file):
     ).decode("utf-8")
 
 
+def transcribe_audio(audio_file):
+    transcript = client.audio.transcriptions.create(
+        model="whisper-1",
+        file=audio_file
+    )
+    return transcript.text
+
+
 client = OpenAI(
     api_key=st.secrets["OPENAI_API_KEY"]
 )
@@ -19,6 +27,20 @@ st.write("Use camera, voice, and text to generate a moving plan.")
 
 
 picture = st.camera_input("Take a photo of your items")
+audio = st.audio_input("Record your question")
+
+if audio:
+    if st.button("Transcribe Audio"):
+        try:
+            with st.spinner("Transcribing audio..."):
+                transcript_text = transcribe_audio(audio)
+
+            st.subheader("Voice Transcript")
+            st.write(transcript_text)
+
+        except Exception as e:
+            st.error(f"Audio transcription failed: {e}")
+
 
 if picture:
     st.image(
@@ -27,11 +49,20 @@ if picture:
         use_container_width=True
     )
 
-    if st.button("Analyze Image"):
+    if st.button("Analyze Image and Voice"):
         try:
             image_base64 = image_to_base64(picture)
 
-            with st.spinner("Analyzing image..."):
+            user_question = ""
+
+            if audio:
+                with st.spinner("Transcribing audio..."):
+                    user_question = transcribe_audio(audio)
+
+            if not user_question:
+                user_question = "What moving suggestions can you give based on this image?"
+
+            with st.spinner("Analyzing image and voice..."):
                 response = client.responses.create(
                     model="gpt-4.1-mini",
                     input=[
@@ -41,10 +72,11 @@ if picture:
                                 {
                                     "type": "input_text",
                                     "text": (
-                                        "Describe this image and identify any moving-related "
-                                        "items such as boxes, furniture, mattresses, clothes, "
-                                        "bags, or fragile objects. Then give practical packing "
-                                        "or moving suggestions."
+                                        "You are a moving assistant. "
+                                        "Analyze the image and answer the user's question. "
+                                        "Focus on packing, storage, transportation, fragile items, "
+                                        "donation, moving order, and cost control. "
+                                        f"User question: {user_question}"
                                     )
                                 },
                                 {
@@ -56,14 +88,15 @@ if picture:
                     ]
                 )
 
-            st.subheader("AI Visual Analysis")
+            st.subheader("User Question")
+            st.write(user_question)
+
+            st.subheader("AI Visual + Voice Analysis")
             st.write(response.output_text)
 
         except Exception as e:
             st.error(f"AI analysis failed: {e}")
 
-
-audio = st.audio_input("Record your question")
 
 move_date = st.date_input("Move date")
 budget = st.text_input("Budget", placeholder="$300")
@@ -125,7 +158,7 @@ if st.button("Generate Plan"):
             st.write("Photo uploaded. You can use the AI visual analysis above.")
 
         if audio:
-            st.write("The recorded voice will be used as the user's spoken question.")
+            st.write("Voice uploaded. You can use the AI visual + voice analysis above.")
 
         st.write("4. Keep important documents, chargers, and toiletries in one essentials bag.")
 

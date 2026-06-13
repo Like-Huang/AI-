@@ -1,8 +1,0 @@
-import streamlit as st
-
-st.title("Moving Helper AI")
-
-name = st.text_input("What is your name?")
-
-if st.button("Submit"):
-    st.write(f"Hello {name}")

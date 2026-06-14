@@ -8,7 +8,7 @@ Moving can be stressful, especially for students who need to organize furniture,
 
 Moving Helper AI uses speech recognition, computer vision, and large language models to simplify the moving process. Users can describe their moving situation through voice, upload photos of their belongings, or provide text instructions. The system then generates personalized moving recommendations.
 
-⸻
+
 
 # **Features**
 
@@ -52,13 +52,13 @@ Generate recommendations for:
 * Donation suggestions
 * Moving timeline
 
-⸻
+
 
 # **User Story**
 
 As a student preparing for a move, I want to describe my moving situation using voice, images, or text so that I can quickly receive a personalized moving plan without manually researching moving logistics.
 
-⸻
+
 
 ## Technologies Used
 
@@ -71,7 +71,7 @@ As a student preparing for a move, I want to describe my moving situation using 
 * Streamlit WebRTC
 * Streamlit Mic Recorder
 
-⸻
+
 
 ## Cost Optimization Strategies
 
@@ -83,7 +83,7 @@ To reduce operational cost:
 4. Only a single video frame is processed instead of continuous video analysis.
 5. Extracted information is reused to avoid repeated API calls.
 
-⸻
+
 
 ## Future Improvements
 
@@ -94,19 +94,16 @@ To reduce operational cost:
 * Real-time video analysis
 * Multi-user collaboration
 
-⸻
 
 ## Installation
 
 pip install -r requirements.txt
 
-⸻
 
 ## Run
 
 streamlit run main.py
 
-⸻
 
 ## Example Workflow
 

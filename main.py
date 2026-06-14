@@ -3,27 +3,44 @@ import streamlit as st
 import base64
 import io
 import json
+import cv2
+import av
 from datetime import date
 from streamlit_mic_recorder import mic_recorder
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
+
+
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 
 def image_to_base64(uploaded_file):
-    return base64.b64encode(
-        uploaded_file.getvalue()
-    ).decode("utf-8")
+    return base64.b64encode(uploaded_file.getvalue()).decode("utf-8")
 
 
-def extract_form_info(transcript_text):
+def frame_to_base64(frame):
+    _, buffer = cv2.imencode(".jpg", frame)
+    return base64.b64encode(buffer).decode("utf-8")
+
+
+def transcribe_audio_bytes(audio_bytes, filename="voice.wav"):
+    audio_file = io.BytesIO(audio_bytes)
+    audio_file.name = filename
+    transcript = client.audio.transcriptions.create(
+        model="whisper-1",
+        file=audio_file
+    )
+    return transcript.text
+
+
+def extract_form_info(text):
     response = client.responses.create(
         model="gpt-4.1-mini",
         input=f"""
-Extract moving information from the user's spoken request.
+Extract moving information from the user's text.
 
-Return ONLY valid JSON. No markdown.
+Return ONLY valid JSON.
 
-Fields:
 {{
-  "move_date": "",
   "budget": "",
   "items": "",
   "need_storage": false,
@@ -33,32 +50,66 @@ Fields:
   "language": ""
 }}
 
-Rules:
-- distance must be one of: "Same apartment/community", "Within the same city", "Long distance", or "".
-- amount must be one of: "Small", "Medium", "Large", or "".
-- language must be "Chinese", "English", or "Mixed".
-- If information is missing, use empty string or false.
+distance must be one of:
+"Same apartment/community", "Within the same city", "Long distance", or "".
 
-User transcript:
-{transcript_text}
+amount must be one of:
+"Small", "Medium", "Large", or "".
+
+User text:
+{text}
 """
     )
-
     return json.loads(response.output_text)
 
 
-client = OpenAI(
-    api_key=st.secrets["OPENAI_API_KEY"]
-)
+class VideoProcessor(VideoProcessorBase):
+    def __init__(self):
+        self.latest_frame = None
+
+    def recv(self, frame):
+        img = frame.to_ndarray(format="bgr24")
+        self.latest_frame = img
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+
+if "voice_transcripts" not in st.session_state:
+    st.session_state.voice_transcripts = []
+
+if "extracted_info" not in st.session_state:
+    st.session_state.extracted_info = {}
 
 
 st.title("Moving Helper AI")
-st.write("Use camera, voice, and text to generate a moving plan.")
+st.write("Use live video, images, voice, and text to generate a moving plan.")
 
 
-picture = st.camera_input("Take a photo of your items / 拍摄你的搬家物品")
+st.markdown("## Live Video Mode / 实时视频模式")
 
-st.markdown("### Voice Question / 语音问题")
+ctx = webrtc_streamer(
+    key="live-video",
+    video_processor_factory=VideoProcessor,
+    media_stream_constraints={"video": True, "audio": False}
+)
+
+include_live_frame = st.checkbox(
+    "Include current live video frame in AI analysis / 将当前实时视频帧加入分析",
+    value=False
+)
+
+
+st.markdown("## Image Inputs / 图片输入")
+
+camera_picture = st.camera_input("Take a photo / 拍照")
+
+uploaded_images = st.file_uploader(
+    "Upload one or more images / 上传一张或多张图片",
+    type=["jpg", "jpeg", "png"],
+    accept_multiple_files=True
+)
+
+
+st.markdown("## Voice Inputs / 语音输入")
 
 audio = mic_recorder(
     start_prompt="Start recording",
@@ -67,78 +118,90 @@ audio = mic_recorder(
     key="recorder"
 )
 
-voice_text = ""
-extracted_info = {}
-
 if audio:
-    st.success("Audio received! / 已检测到音频！")
+    if st.button("Add this voice clip / 添加这段语音"):
+        try:
+            with st.spinner("Transcribing voice..."):
+                text = transcribe_audio_bytes(
+                    audio["bytes"],
+                    f"voice_{len(st.session_state.voice_transcripts)}.wav"
+                )
 
-    audio_bytes = audio["bytes"]
-    audio_file = io.BytesIO(audio_bytes)
-    audio_file.name = "voice.wav"
+            st.session_state.voice_transcripts.append(text)
 
-    try:
-        with st.spinner("Transcribing voice..."):
-            transcript = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file
-            )
+            combined_text = "\n".join(st.session_state.voice_transcripts)
+            st.session_state.extracted_info = extract_form_info(combined_text)
 
-        voice_text = transcript.text
+            st.success("Voice clip added. / 语音已添加。")
 
-        st.subheader("Voice Transcript / 语音转写")
-        st.write(voice_text)
+        except Exception as e:
+            st.error(f"Voice processing failed: {e}")
 
-        with st.spinner("Extracting moving information from voice..."):
-            extracted_info = extract_form_info(voice_text)
+if st.session_state.voice_transcripts:
+    st.subheader("Voice Transcripts / 语音转写")
+    for i, transcript in enumerate(st.session_state.voice_transcripts, start=1):
+        st.write(f"{i}. {transcript}")
 
-        st.subheader("Extracted Moving Information / 自动识别的信息")
-        st.json(extracted_info)
-
-    except Exception as e:
-        st.error(f"Voice processing failed: {e}")
-
-
-st.markdown("### Input Check / 输入检测")
-
-if not picture:
-    st.warning("No image detected. Please take a photo. / 未检测到图片，请拍照。")
-else:
-    st.success("Image detected. / 已检测到图片。")
-
-if not voice_text:
-    st.warning("No voice question detected. You can record audio or type items manually. / 未检测到语音问题，可以录音或手动输入。")
-else:
-    st.success("Voice detected and transcribed. / 已检测到并转写语音。")
+    if st.button("Clear voice transcripts / 清空语音"):
+        st.session_state.voice_transcripts = []
+        st.session_state.extracted_info = {}
+        st.rerun()
 
 
-st.markdown("### Moving Details / 搬家信息")
+st.markdown("## Moving Details / 搬家信息")
 
-move_date = st.date_input(
-    "Move date / 搬家日期",
-    value=date.today()
+extracted = st.session_state.extracted_info
+
+move_date = st.date_input("Move date / 搬家日期", value=date.today())
+
+budget_default = 300
+if extracted.get("budget", "").replace("$", "").isdigit():
+    budget_default = int(extracted["budget"].replace("$", ""))
+
+budget = st.slider("Budget / 预算 ($)", 50, 2000, budget_default, 50)
+
+selected_items = st.multiselect(
+    "Common items / 常见物品",
+    [
+        "Mattress",
+        "Bed Frame",
+        "Desk",
+        "Chair",
+        "Books",
+        "Clothes",
+        "Shoes",
+        "TV",
+        "Monitor",
+        "Kitchen Items",
+        "Cabinet",
+        "Storage Bins",
+        "Bike"
+    ]
 )
 
-budget = st.text_input(
-    "Budget / 预算",
-    value=extracted_info.get("budget", "$300") if extracted_info else "$300",
-    placeholder="$300"
+custom_items = st.text_area(
+    "Other items / 其他物品",
+    value=extracted.get("items", ""),
+    placeholder="Gaming PC, guitar, printer..."
 )
 
-items = st.text_area(
-    "Items / 物品",
-    value=extracted_info.get("items", "") if extracted_info else "",
-    placeholder="2 queen mattresses, clothes, books, small cabinets..."
+manual_question = st.text_area(
+    "Manual question / 手动问题",
+    placeholder="How should I pack these items? Do I need storage?"
 )
+
+items = ", ".join(selected_items)
+if custom_items:
+    items = items + ", " + custom_items if items else custom_items
 
 need_storage = st.checkbox(
     "I need storage / 我需要仓库",
-    value=extracted_info.get("need_storage", False) if extracted_info else False
+    value=extracted.get("need_storage", False)
 )
 
 need_truck = st.checkbox(
     "I need a truck / 我需要卡车",
-    value=extracted_info.get("need_truck", False) if extracted_info else False
+    value=extracted.get("need_truck", False)
 )
 
 distance_options = [
@@ -147,8 +210,7 @@ distance_options = [
     "Long distance"
 ]
 
-distance_default = extracted_info.get("distance", "") if extracted_info else ""
-
+distance_default = extracted.get("distance", "")
 distance = st.selectbox(
     "Moving distance / 搬家距离",
     distance_options,
@@ -157,13 +219,15 @@ distance = st.selectbox(
     else 0
 )
 
-amount_options = [
-    "Small",
-    "Medium",
-    "Large"
-]
+amount_options = ["Small", "Medium", "Large"]
 
-amount_default = extracted_info.get("amount", "") if extracted_info else ""
+estimated_amount = "Small"
+if len(selected_items) >= 4 or any(x in selected_items for x in ["Mattress", "Desk", "Cabinet"]):
+    estimated_amount = "Medium"
+if len(selected_items) >= 8:
+    estimated_amount = "Large"
+
+amount_default = extracted.get("amount", "") or estimated_amount
 
 amount = st.selectbox(
     "Amount of stuff / 物品数量",
@@ -174,144 +238,166 @@ amount = st.selectbox(
 )
 
 
-if picture:
-    st.image(
-        picture,
-        caption="Captured Image / 拍摄图片",
-        use_container_width=True
-    )
+st.markdown("## Input Check / 输入检测")
 
-    if st.button("Analyze Image and Voice / 分析图片和语音"):
-        try:
-            image_base64 = image_to_base64(picture)
+visual_count = 0
+if camera_picture:
+    visual_count += 1
+if uploaded_images:
+    visual_count += len(uploaded_images)
+if include_live_frame and ctx.video_processor and ctx.video_processor.latest_frame is not None:
+    visual_count += 1
 
-            user_question = voice_text
+voice_count = len(st.session_state.voice_transcripts)
 
+if visual_count == 0:
+    st.warning("No visual input detected. / 未检测到视觉输入。")
+else:
+    st.success(f"{visual_count} visual input(s) detected. / 已检测到 {visual_count} 个视觉输入。")
+
+if voice_count == 0:
+    st.warning("No voice input detected. / 未检测到语音输入。")
+else:
+    st.success(f"{voice_count} voice clip(s) detected. / 已检测到 {voice_count} 段语音。")
+
+progress = 0
+if visual_count:
+    progress += 25
+if voice_count:
+    progress += 25
+if items:
+    progress += 25
+if budget:
+    progress += 25
+
+st.progress(progress)
+st.write(f"Input completeness / 输入完整度: {progress}%")
+
+
+st.markdown("## AI Analysis / AI 分析")
+
+if st.button("Analyze All Inputs / 分析所有输入"):
+    try:
+        visual_base64_list = []
+
+        if camera_picture:
+            visual_base64_list.append(image_to_base64(camera_picture))
+
+        if uploaded_images:
+            for img in uploaded_images:
+                visual_base64_list.append(image_to_base64(img))
+
+        if include_live_frame and ctx.video_processor:
+            frame = ctx.video_processor.latest_frame
+            if frame is not None:
+                visual_base64_list.append(frame_to_base64(frame))
+
+        combined_voice_text = "\n".join(st.session_state.voice_transcripts)
+
+        user_question = manual_question or combined_voice_text or items
+
+        if not user_question and not visual_base64_list:
+            st.warning("Please provide image, video frame, voice, or text first. / 请先提供图片、视频帧、语音或文字。")
+        else:
             if not user_question:
-                user_question = items if items else "What moving suggestions can you give based on this image?"
+                user_question = "Please give moving suggestions based on the visual inputs."
 
-            with st.spinner("Analyzing image and voice..."):
+            prompt = (
+                "You are a bilingual moving assistant. "
+                "Analyze all provided images/video frames and the user's text or voice transcripts. "
+                "Answer in both English and Chinese. "
+                "Focus on packing, storage, transportation, fragile items, donation, moving order, and cost control. "
+                "If no clear moving items are visible, say so honestly. "
+                f"Move date: {move_date}. "
+                f"Budget: ${budget}. "
+                f"Items: {items}. "
+                f"Need storage: {need_storage}. "
+                f"Need truck: {need_truck}. "
+                f"Distance: {distance}. "
+                f"Amount: {amount}. "
+                f"User question / 用户问题: {user_question}"
+            )
+
+            content = [{"type": "input_text", "text": prompt}]
+
+            for image_base64 in visual_base64_list:
+                content.append({
+                    "type": "input_image",
+                    "image_url": f"data:image/jpeg;base64,{image_base64}"
+                })
+
+            with st.spinner("Analyzing all inputs..."):
                 response = client.responses.create(
                     model="gpt-4.1-mini",
                     input=[
                         {
                             "role": "user",
-                            "content": [
-                                {
-                                    "type": "input_text",
-                                    "text": (
-                                        "You are a bilingual moving assistant. "
-                                        "Analyze the image and answer the user's question in both English and Chinese. "
-                                        "Focus on packing, storage, transportation, fragile items, donation, "
-                                        "moving order, and cost control. "
-                                        "If no clear moving items are visible, say so honestly. "
-                                        f"User question: {user_question}. "
-                                        f"Move date: {move_date}. "
-                                        f"Budget: {budget}. "
-                                        f"Items typed by user: {items}. "
-                                        f"Need storage: {need_storage}. "
-                                        f"Need truck: {need_truck}. "
-                                        f"Distance: {distance}. "
-                                        f"Amount: {amount}."
-                                    )
-                                },
-                                {
-                                    "type": "input_image",
-                                    "image_url": f"data:image/jpeg;base64,{image_base64}"
-                                }
-                            ]
+                            "content": content
                         }
                     ]
                 )
 
+            ai_text = response.output_text
+
             st.subheader("User Question / 用户问题")
             st.write(user_question)
 
-            st.subheader("AI Visual + Voice Analysis / AI 图片与语音分析")
-            st.write(response.output_text)
+            st.subheader("AI Multimodal Analysis / AI 多模态分析")
+            st.write(ai_text)
 
-        except Exception as e:
-            st.error(f"AI analysis failed: {e}")
+    except Exception as e:
+        st.error(f"AI analysis failed: {e}")
 
 
 if st.button("Generate Plan / 生成搬家计划"):
     st.subheader("Your Moving Plan / 你的搬家计划")
 
-    if not items and not picture and not voice_text:
-        st.warning("Please enter items, take a photo, or record your question first. / 请先输入物品、拍照或录音。")
+    if not items and visual_count == 0 and voice_count == 0:
+        st.warning("Please provide at least one input first. / 请先提供至少一种输入。")
     else:
         st.markdown(f"""
 ### Summary / 总结
 - Move date / 搬家日期: {move_date}
-- Budget / 预算: {budget}
+- Budget / 预算: ${budget}
 - Storage needed / 是否需要仓库: {need_storage}
 - Truck needed / 是否需要卡车: {need_truck}
 - Distance / 距离: {distance}
-- Amount of stuff / 物品数量: {amount}
-- Photo uploaded / 是否上传图片: {picture is not None}
-- Voice recorded / 是否录音: {bool(voice_text)}
+- Amount / 物品数量: {amount}
+- Visual inputs / 视觉输入数量: {visual_count}
+- Voice clips / 语音数量: {voice_count}
 """)
 
         st.markdown("### Packing Priority / 打包优先级")
 
-        if items:
-            lower_items = items.lower()
+        lower_items = items.lower()
 
-            if "mattress" in lower_items or "bed" in lower_items:
-                st.write("1. Prepare mattress bags and move mattresses last. / 准备床垫保护袋，床垫最后搬。")
-            else:
-                st.write("1. Pack daily-use items last. / 日用品最后打包。")
+        if "mattress" in lower_items or "bed" in lower_items:
+            st.write("1. Prepare mattress bags and move mattresses last. / 准备床垫保护袋，床垫最后搬。")
+        else:
+            st.write("1. Pack daily-use items last. / 日用品最后打包。")
 
-            if "books" in lower_items:
-                st.write("2. Pack books in small boxes because they get heavy quickly. / 书很重，请用小箱子打包。")
+        if "books" in lower_items:
+            st.write("2. Pack books in small boxes because they get heavy quickly. / 书很重，请用小箱子打包。")
 
-            if "clothes" in lower_items:
-                st.write("3. Pack clothes in suitcases, vacuum bags, or large boxes. / 衣服可以放进行李箱、真空袋或大箱子。")
+        if "clothes" in lower_items:
+            st.write("3. Pack clothes in suitcases, vacuum bags, or large boxes. / 衣服可以放进行李箱、真空袋或大箱子。")
 
-        if picture:
-            st.write("Photo uploaded. You can use the AI visual + voice analysis above. / 已上传图片，可参考上方 AI 分析。")
-
-        if voice_text:
-            st.write("Voice transcribed. You can use the AI visual + voice analysis above. / 已完成语音转写，可参考上方 AI 分析。")
-
-        st.write("4. Keep important documents, chargers, toiletries, passport, wallet, and medication in one essentials bag. / 把重要文件、充电器、洗漱用品、护照、钱包和药品放在随身必需包里。")
+        st.write("4. Keep passport, wallet, chargers, documents, and medication in one essentials bag. / 护照、钱包、充电器、文件和药品随身携带。")
 
         st.markdown("### Storage Suggestion / 仓储建议")
 
         if need_storage:
             if amount == "Small":
-                st.write("A 5x5 storage unit may be enough. / 5x5 仓库可能够用。")
+                st.write("A 5x5 storage unit may be enough. / 5x5 可能够用。")
             elif amount == "Medium":
-                st.write("A 5x10 storage unit is likely a safer choice. / 5x10 仓库更稳妥。")
+                st.write("A 5x10 storage unit is safer. / 5x10 更稳妥。")
             else:
-                st.write("Consider a 10x10 storage unit, especially if you have mattresses or furniture. / 如果有床垫或家具，建议考虑 10x10。")
+                st.write("Consider a 10x10 storage unit. / 建议考虑 10x10。")
         else:
-            st.write("Storage is not selected. Focus on direct moving and donation. / 未选择仓储，可优先考虑直接搬走或捐赠。")
+            st.write("Storage is not selected. Consider direct moving or donation. / 未选择仓储，可考虑直接搬走或捐赠。")
 
-        st.markdown("### Transportation Suggestion / 运输建议")
-
-        if need_truck or amount == "Large":
-            st.write("A truck or moving van is recommended. / 建议租卡车或搬家 van。")
-        elif distance == "Same apartment/community":
-            st.write("You may be able to move with carts or multiple small trips. / 如果在同一公寓或社区内，可以用推车多次搬运。")
-        else:
-            st.write("A car may work if you reduce large items. / 如果减少大件物品，普通车可能够用。")
-
-        st.markdown("""
-### Suggested Timeline / 建议时间线
-- 7 days before: sort items, donate unused things, buy boxes.  
-  提前 7 天：整理物品，捐掉不用的东西，购买箱子。
-- 3 days before: pack most non-essential items.  
-  提前 3 天：打包大部分非必需品。
-- 1 day before: prepare essentials bag and confirm storage/truck.  
-  提前 1 天：准备随身必需包，确认仓库和车辆。
-- Moving day: move large items first or last depending on elevator/access.  
-  搬家当天：根据电梯和通道情况决定先搬或后搬大件。
-
-### Final Checklist / 最终清单
-- Return keys / 归还钥匙
-- Clean fridge and sink / 清空冰箱和水槽
-- Take photos / 拍照留证
-- Check storage or truck reservation / 确认仓库或卡车预订
-- Keep passport, wallet, charger, and medication with you / 护照、钱包、充电器和药品随身携带
-""")
+        st.markdown("### Timeline / 时间线")
+        st.write("- 7 days before: sort items, donate unused things, buy boxes.")
+        st.write("- 3 days before: pack non-essential items.")
+        st.write("- 1 day before: prepare essentials bag and confirm truck/storage.")
+        st.write("- Moving day: move large items carefully and keep valuables with you.")

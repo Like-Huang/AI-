@@ -1,4 +1,4 @@
-1. Project Overview
+# **Project Overview**
 
 Moving Helper AI is a multimodal moving assistant that helps users organize and plan a move using voice, images, live video, and text inputs.
 
@@ -6,11 +6,11 @@ The goal is to reduce the effort required to estimate moving needs, identify mov
 
 ⸻
 
-2. Planned User Stories
+# **2. Planned User Stories**
 
 User Story 1
 
-As a user, I want to describe my moving situation using voice so that I do not need to manually type everything.
+As a user, I want to describe my moving situation using voice so that I do not need to manually type everything. And I think that kind of saving time for me.
 
 Status: Implemented
 
@@ -34,7 +34,7 @@ Status: Implemented
 
 User Story 4
 
-As a user, I want AI to automatically extract moving information such as move date, budget, storage needs, and transportation requirements.
+As a user, I want AI to automatically extract moving information such as move date, budget, storage needs, and transportation requirements. So I add some prompts for AI to automatically analyzes those imformation from the voice.
 
 Status: Implemented
 
@@ -48,7 +48,7 @@ Status: Implemented
 
 ⸻
 
-3. System Architecture
+# **3. System Architecture**
 
 Input Layer
 
@@ -74,9 +74,8 @@ Output Layer
 * Storage Planning
 * Moving Timeline
 
-⸻
 
-4. Cost Optimization Ideas
+# **4. Cost Optimization Ideas**
 
 Ideas Considered
 
@@ -89,9 +88,9 @@ Problems
 
 These approaches significantly increase API cost and computation requirements.
 
-⸻
 
-5. Cost Optimization Techniques Actually Used
+
+# **5. Cost Optimization Techniques Actually Used**
 
 Technique 1
 
@@ -121,9 +120,9 @@ Reuse extracted moving information.
 Benefit:
 Reduce duplicate API calls.
 
-⸻
 
-6. Future Improvements
+
+# **6. Future Improvements**
 
 * Moving cost estimation
 * Truck size recommendation
@@ -132,8 +131,7 @@ Reduce duplicate API calls.
 * Real-time video analysis
 * Mobile deployment
 
-⸻
 
-7. Conclusion
+# **7. Conclusion**
 
 Moving Helper AI demonstrates how multimodal AI can simplify moving-related planning tasks while maintaining low operational cost through selective processing and lightweight model choices.

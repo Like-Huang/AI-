@@ -1,8 +1,8 @@
-#Moving Helper AI
+#**Moving Helper AI**
 
 A multimodal Streamlit application that helps users generate moving plans using voice, images, live video, and text inputs.
 
-#Project Overview
+#**Project Overview**
 
 Moving can be stressful, especially for students who need to organize furniture, storage, transportation, and packing schedules.
 
@@ -10,15 +10,15 @@ Moving Helper AI uses speech recognition, computer vision, and large language mo
 
 ⸻
 
-#Features
+#**Features**
 
-Voice Input
+##Voice Input
 
 * Record moving requirements using a microphone
 * Automatic speech-to-text transcription using OpenAI Whisper
 * Extract key moving information from natural language
 
-Image Analysis
+##Image Analysis
 
 * Upload room photos
 * Take photos directly from the camera

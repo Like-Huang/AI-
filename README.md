@@ -8,7 +8,15 @@ Moving can be stressful, especially for students who need to organize furniture,
 
 Moving Helper AI uses speech recognition, computer vision, and large language models to simplify the moving process. Users can describe their moving situation through voice, upload photos of their belongings, or provide text instructions. The system then generates personalized moving recommendations.
 
+## Dependencies
 
+- streamlit
+- openai
+- opencv-python
+- numpy
+- av
+- streamlit-mic-recorder
+- streamlit-webrtc
 
 # **Features**
 

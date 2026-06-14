@@ -5,7 +5,7 @@ import io
 import json
 import cv2
 import av
-from datetime import date
+from datetime import date, datetime
 from streamlit_mic_recorder import mic_recorder
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
 
@@ -31,6 +31,17 @@ def transcribe_audio_bytes(audio_bytes, filename="voice.wav"):
     )
     return transcript.text
 
+def parse_date_safe(date_text):
+    if not date_text:
+        return None
+
+    try:
+        return datetime.strptime(
+            date_text,
+            "%Y-%m-%d"
+        ).date()
+    except:
+        return None
 
 def extract_form_info(text):
     response = client.responses.create(
@@ -41,6 +52,7 @@ Extract moving information from the user's text.
 Return ONLY valid JSON.
 
 {{
+  "move_date": "",
   "budget": "",
   "items": "",
   "need_storage": false,
@@ -49,6 +61,16 @@ Return ONLY valid JSON.
   "amount": "",
   "language": ""
 }}
+move_date must be in YYYY-MM-DD format.
+
+If user says:
+- July 10
+- 7/10
+- 7月10号
+- tomorrow
+
+convert it to YYYY-MM-DD.
+If no move date is mentioned, return "".
 
 distance must be one of:
 "Same apartment/community", "Within the same city", "Long distance", or "".

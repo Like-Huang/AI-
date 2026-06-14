@@ -4,7 +4,7 @@ Moving Helper AI is a multimodal moving assistant that helps users organize and 
 
 The goal is to reduce the effort required to estimate moving needs, identify moving items, and generate personalized moving recommendations.
 
-⸻
+
 
 # **2. Planned User Stories**
 
@@ -14,7 +14,7 @@ As a user, I want to describe my moving situation using voice so that I do not n
 
 Status: Implemented
 
-⸻
+
 
 User Story 2
 
@@ -22,7 +22,7 @@ As a user, I want to upload photos of my room so that AI can understand what ite
 
 Status: Implemented
 
-⸻
+
 
 User Story 3
 
@@ -30,7 +30,7 @@ As a user, I want to use my webcam to show my belongings so that AI can analyze 
 
 Status: Implemented
 
-⸻
+
 
 User Story 4
 
@@ -38,7 +38,7 @@ As a user, I want AI to automatically extract moving information such as move da
 
 Status: Implemented
 
-⸻
+
 
 User Story 5
 
@@ -46,7 +46,7 @@ As a user, I want AI to generate a complete moving plan including packing sugges
 
 Status: Implemented
 
-⸻
+
 
 # **3. System Architecture**
 

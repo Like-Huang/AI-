@@ -108,8 +108,10 @@ uploaded_images = st.file_uploader(
     accept_multiple_files=True
 )
 
-
 st.markdown("## Voice Inputs / 语音输入")
+
+if "last_audio_id" not in st.session_state:
+    st.session_state.last_audio_id = None
 
 audio = mic_recorder(
     start_prompt="Start recording",
@@ -118,8 +120,14 @@ audio = mic_recorder(
     key="recorder"
 )
 
-if audio:
-    if st.button("Add this voice clip / 添加这段语音"):
+st.write("Audio debug:", audio is not None)
+
+if audio and audio.get("bytes"):
+    audio_id = audio.get("id", len(audio["bytes"]))
+
+    if audio_id != st.session_state.last_audio_id:
+        st.session_state.last_audio_id = audio_id
+
         try:
             with st.spinner("Transcribing voice..."):
                 text = transcribe_audio_bytes(
@@ -132,21 +140,11 @@ if audio:
             combined_text = "\n".join(st.session_state.voice_transcripts)
             st.session_state.extracted_info = extract_form_info(combined_text)
 
-            st.success("Voice clip added. / 语音已添加。")
+            st.success("Voice transcribed. / 语音已转写。")
+            st.write(text)
 
         except Exception as e:
             st.error(f"Voice processing failed: {e}")
-
-if st.session_state.voice_transcripts:
-    st.subheader("Voice Transcripts / 语音转写")
-    for i, transcript in enumerate(st.session_state.voice_transcripts, start=1):
-        st.write(f"{i}. {transcript}")
-
-    if st.button("Clear voice transcripts / 清空语音"):
-        st.session_state.voice_transcripts = []
-        st.session_state.extracted_info = {}
-        st.rerun()
-
 
 st.markdown("## Moving Details / 搬家信息")
 

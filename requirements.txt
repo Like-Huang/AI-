@@ -1,0 +1,7 @@
+streamlit
+openai
+opencv-python
+numpy
+av
+streamlit-mic-recorder
+streamlit-webrtc

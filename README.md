@@ -149,7 +149,6 @@ To reduce operational cost:
 
 pip install -r requirements.txt
 
-⸻
 
 # **Run 运行项目**
 

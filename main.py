@@ -1,20 +1,14 @@
 from openai import OpenAI
 import streamlit as st
 import base64
+import io
+from streamlit_mic_recorder import mic_recorder
 
 
 def image_to_base64(uploaded_file):
     return base64.b64encode(
         uploaded_file.getvalue()
     ).decode("utf-8")
-
-
-def transcribe_audio(audio_file):
-    transcript = client.audio.transcriptions.create(
-        model="whisper-1",
-        file=audio_file
-    )
-    return transcript.text
 
 
 client = OpenAI(
@@ -27,20 +21,61 @@ st.write("Use camera, voice, and text to generate a moving plan.")
 
 
 picture = st.camera_input("Take a photo of your items")
-audio = st.audio_input("Record your question")
+
+st.markdown("### Voice Question")
+
+audio = mic_recorder(
+    start_prompt="Start recording",
+    stop_prompt="Stop recording",
+    just_once=True,
+    key="recorder"
+)
+
+voice_text = ""
 
 if audio:
-    try:
-        transcript = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio
-        )
+    st.success("Audio received!")
 
-        st.write(transcript.text)
+    audio_bytes = audio["bytes"]
+    audio_file = io.BytesIO(audio_bytes)
+    audio_file.name = "voice.wav"
+
+    try:
+        with st.spinner("Transcribing voice..."):
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+
+        voice_text = transcript.text
+
+        st.subheader("Voice Transcript")
+        st.write(voice_text)
 
     except Exception as e:
-        st.error(str(e))
+        st.error(f"Voice transcription failed: {e}")
 
+
+move_date = st.date_input("Move date")
+budget = st.text_input("Budget", placeholder="$300")
+
+items = st.text_area(
+    "Items",
+    placeholder="2 queen mattresses, clothes, books, small cabinets..."
+)
+
+need_storage = st.checkbox("I need storage")
+need_truck = st.checkbox("I need a truck")
+
+distance = st.selectbox(
+    "Moving distance",
+    ["Same apartment/community", "Within the same city", "Long distance"]
+)
+
+amount = st.selectbox(
+    "Amount of stuff",
+    ["Small", "Medium", "Large"]
+)
 
 
 if picture:
@@ -54,14 +89,10 @@ if picture:
         try:
             image_base64 = image_to_base64(picture)
 
-            user_question = ""
-
-            if audio:
-                with st.spinner("Transcribing audio..."):
-                    user_question = transcribe_audio(audio)
+            user_question = voice_text
 
             if not user_question:
-                user_question = "What moving suggestions can you give based on this image?"
+                user_question = items if items else "What moving suggestions can you give based on this image?"
 
             with st.spinner("Analyzing image and voice..."):
                 response = client.responses.create(
@@ -99,32 +130,10 @@ if picture:
             st.error(f"AI analysis failed: {e}")
 
 
-move_date = st.date_input("Move date")
-budget = st.text_input("Budget", placeholder="$300")
-
-items = st.text_area(
-    "Items",
-    placeholder="2 queen mattresses, clothes, books, small cabinets..."
-)
-
-need_storage = st.checkbox("I need storage")
-need_truck = st.checkbox("I need a truck")
-
-distance = st.selectbox(
-    "Moving distance",
-    ["Same apartment/community", "Within the same city", "Long distance"]
-)
-
-amount = st.selectbox(
-    "Amount of stuff",
-    ["Small", "Medium", "Large"]
-)
-
-
 if st.button("Generate Plan"):
     st.subheader("Your Moving Plan")
 
-    if not items and not picture and not audio:
+    if not items and not picture and not voice_text:
         st.warning("Please enter items, take a photo, or record your question first.")
     else:
         st.markdown(f"""
@@ -136,7 +145,7 @@ if st.button("Generate Plan"):
 - Distance: {distance}
 - Amount of stuff: {amount}
 - Photo uploaded: {picture is not None}
-- Voice recorded: {audio is not None}
+- Voice recorded: {bool(voice_text)}
 """)
 
         st.markdown("### Basic Plan")
@@ -156,10 +165,10 @@ if st.button("Generate Plan"):
                 st.write("3. Pack clothes in suitcases, vacuum bags, or large boxes.")
 
         if picture:
-            st.write("Photo uploaded. You can use the AI visual analysis above.")
+            st.write("Photo uploaded. You can use the AI visual + voice analysis above.")
 
-        if audio:
-            st.write("Voice uploaded. You can use the AI visual + voice analysis above.")
+        if voice_text:
+            st.write("Voice transcribed. You can use the AI visual + voice analysis above.")
 
         st.write("4. Keep important documents, chargers, and toiletries in one essentials bag.")
 
